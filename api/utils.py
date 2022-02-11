@@ -34,7 +34,10 @@ from scipy.stats import norm, kurtosis, skew, sem
 import numpy as np
 from datetime import datetime
 from collections import deque
-from typing import List
+from typing import List, Type, Dict, Union
+from .assets import OptionsContract
+from .types.static import OptionsSubType
+from .types.option_stats import OptionBSM, OptionPrice, OptionIDV
 
 
 class Utils:
@@ -58,7 +61,7 @@ class Utils:
         return prices
 
     @staticmethod
-    def bsm_prices_matrix(option, prices: list, days: int, rfir: float) -> list:
+    def bsm_prices_matrix(option: Type[OptionsContract], prices: list, days: int, rfir: float) -> Dict[int, dict]:
         matrix = {}
         while days > 0:
             bsm_prices = Utils.bsm_prices(option, prices, days, rfir)
@@ -67,7 +70,8 @@ class Utils:
         return matrix
 
     @staticmethod
-    def bsm_prices(option, prices: List[float], days: int, rfir: float) -> list:
+    def bsm_prices(option: Type[OptionsContract], prices: List[float],
+                   days: int, rfir: float) -> Dict[float, OptionBSM]:
         bsm_prices = {}
         for price in prices:
             # TODO: fix `option.price` to take into account time decay.
@@ -76,7 +80,8 @@ class Utils:
         return bsm_prices
 
     @staticmethod
-    def estimated_prices_matrix(option, prices: list, day_vol: float, days: int, rfir: float) -> list:
+    def estimated_prices_matrix(option: Type[OptionsContract], prices: list,
+                                day_vol: float, days: int, rfir: float) -> Dict[int, dict]:
         matrix = {}
         while days > 0:
             estimated_prices = Utils.estimated_prices(option, prices, day_vol, days, rfir)
@@ -85,7 +90,8 @@ class Utils:
         return matrix
 
     @staticmethod
-    def estimated_prices(option, prices: list, day_vol: float, days: int, rfir: float) -> list:
+    def estimated_prices(option: Type[OptionsContract], prices: list, day_vol: float,
+                         days: int, rfir: float) -> Dict[float, OptionPrice]:
         estimated_prices = {}
         for price in prices:
             est_price = Utils.option_price(option.typ, price, option.strike, day_vol, days, rfir)[0]
@@ -147,7 +153,7 @@ class Utils:
         return " ".join(f"{ord(i):08b}" for i in s)
 
     @staticmethod
-    def durration_volatility(daily_vol: float, time) -> float:
+    def durration_volatility(daily_vol: float, time: Union[int, float]) -> float:
         """
         The primary method for converting daily volatility to duration volatility. This
         function below requires the sigma argument.
@@ -161,9 +167,9 @@ class Utils:
             strike: float,
             option_price: float,
             days: int,
-            rate: float) -> list:
+            rate: float) -> OptionBSM:
         """ Runs Black-Scholes-Merton IDV for options."""
-        if option_type == 'CALL':
+        if option_type == OptionsSubType.CALL:
             return Utils.bsm_idv_call(stock, strike, option_price, days, rate)
         return Utils.bsm_idv_put(stock, strike, option_price, days, rate)
 
@@ -173,7 +179,7 @@ class Utils:
             strike: float,
             target: float,
             days: int,
-            rate: float) -> list:
+            rate: float) -> OptionBSM:
         """
         A modification of the call_idv_bsdc model. This is the B-S-M IDV
         model for calls only, using divide and conquer iteration for conversion. This model
@@ -210,7 +216,7 @@ class Utils:
                 break
             i -= 1
         price, delta, durvol, prob_itm = temp
-        return price, delta, durvol, prob_itm, idv
+        return OptionBSM(price, delta, durvol, prob_itm, idv)
 
     @staticmethod
     def bsm_idv_put(
@@ -218,7 +224,7 @@ class Utils:
             strike: float,
             target: float,
             days: int,
-            rate: float) -> list:
+            rate: float) -> OptionBSM:
         """
         A modification of the put_idv_bsdc model. This is the B-S-M IDV
         model for puts only, using divide and conquer iteration for conversion. This model
@@ -255,7 +261,7 @@ class Utils:
                 break
             i -= 1
         price, delta, durvol, prob_itm = temp
-        return price, delta, durvol, prob_itm, idv
+        return OptionBSM(price, delta, durvol, prob_itm, idv)
 
     @staticmethod
     def option_price(
@@ -264,8 +270,8 @@ class Utils:
             strike: float,
             day_vol: float,
             days: int,
-            rfir: float) -> list:
-        if option_type == 'CALL':
+            rfir: float) -> OptionPrice:
+        if option_type == OptionsSubType.CALL:
             return Utils.call_option_price(stock, strike, day_vol, days, rfir)
         return Utils.put_option_price(stock, strike, day_vol, days, rfir)
 
@@ -275,7 +281,7 @@ class Utils:
             strike: float,
             day_vol: float,
             days: int,
-            rfir: float) -> list:
+            rfir: float) -> OptionPrice:
         """
         Calculating exactly the same as copo, but also passing out one more
         variable in the tuple, probability of being in the money (at expiry).
@@ -293,7 +299,7 @@ class Utils:
         prob_itm = Utils.csnd((d1 / durr_vol) - durr_vol) if durr_vol > 0.0 else 0.0
         discount = math.exp(-rfir * days / 365)
         price = (stock * delta) - (strike * discount * prob_itm)
-        return price, delta, durr_vol, prob_itm
+        return OptionPrice(price, delta, durr_vol, prob_itm)
 
     @staticmethod
     def put_option_price(
@@ -301,7 +307,7 @@ class Utils:
             strike: float,
             day_vol: float,
             days: int,
-            rfir: float) -> list:
+            rfir: float) -> OptionPrice:
         """
         Calculating exactly the same as popo, but also passing out one more
         variable in the tuple, probability of being in the money (at expiry).
@@ -318,7 +324,7 @@ class Utils:
         prob_itm = Utils.csnd(-(d1 / durr_vol - durr_vol)) if durr_vol > 0.0 else 0.0
         discount = math.exp(-rfir * days / 365)
         price = -(stock * delta) + (strike * discount * prob_itm)
-        return price, delta, durr_vol, prob_itm
+        return OptionPrice(price, delta, durr_vol, prob_itm)
 
     @staticmethod
     def delta_call(
@@ -382,7 +388,7 @@ class Utils:
         return 1.0 * math.exp(-1.0 * (risk_free_rate / 365) * time)
 
     @staticmethod
-    def discount_rfrate(risk_free_rate: float, sigma, time) -> float:
+    def discount_rfrate(risk_free_rate: float, sigma: float, time: float) -> float:
         """
         A component of options pricing models and calculators for delta
         and prob ITM. It is usually called as a component of the delta (d1) or prob_itm (d2)
@@ -418,7 +424,7 @@ class Utils:
         log_spread = math.log(strike / sto_pr_exp)
         norm_ls = log_spread / dur_vol
         norm_ls_adj = norm_ls + (dur_vol / 2)    # This is the Ito ajustment
-        if option_type == 'CALL':
+        if option_type == OptionsSubType.CALL:
             return 1 - Utils.csnd(norm_ls_adj)
         return Utils.csnd(norm_ls_adj)
 
@@ -522,7 +528,7 @@ class Utils:
         return scipy.integrate.quad(nd_function, low_lim, point)
 
     @staticmethod
-    def otranche(stock, strike, dur_sigma, call):
+    def otranche(stock: float, strike: float, dur_sigma: float, call: bool) -> float:
         """
         OTRANCHE is an option tranche value calculator function that assumes you
         have a stock price and strike price, adjusted externally (for example, drift
@@ -556,7 +562,7 @@ class Utils:
         return (np.sum(bin_value[0:(i + 1)])) * -1.0
 
     @staticmethod
-    def ftranche(stock, strike, sigma, left):
+    def ftranche(stock: float, strike: float, sigma: float, left: bool) -> float:
         """
         FTRANCHE is a full tranche value calculator function that assumes you have a
         stock price and reference price, usually a strike price (and still called that
@@ -600,8 +606,8 @@ class Utils:
             stock: float,
             strike: float,
             ovalue: float,
-            days,
-            call: bool) -> list:
+            days: Union[int, float],
+            call: bool) -> OptionIDV:
         """
         OIDV calculates implied daily and duration volatility for a call or a put
         using divide and conquer (the default for most models). Also see oidvnm.
@@ -626,10 +632,10 @@ class Utils:
             dur_sigma = Utils.durration_volatility(day_sigma, days)
             tempop = Utils.otranche(stock, strike, dur_sigma, call)
         # End of Loop!
-        return day_sigma, dur_sigma
+        return OptionIDV(day_sigma, dur_sigma)
 
     @staticmethod
-    def oidvnm(stock, strike, ovalue, days, call):
+    def oidvnm(stock: float, strike: float, ovalue: float, days: Union[int, float], call: bool) -> OptionIDV:
         """
         oidvnm calculates implied daily and duration volatility for a call or a put
         using Newton's Method for convergence (default is divide and conquer).
@@ -648,8 +654,8 @@ class Utils:
         # enter option price, strike, and value data that are very unrealistic).
         # Consider setting daysigma at sqrt*time*ln(strike/stock). It was
         # originally set at 0.05
-        daysigma = (math.log(strike / stock)) * math.sqrt(days)
-        dursigma = Utils.durration_volatility(daysigma, days)
+        day_sigma = (math.log(strike / stock)) * math.sqrt(days)
+        dur_sigma = Utils.durration_volatility(day_sigma, days)
         cutoff = 1e-4
         tempop = float(0.00)
         #
@@ -658,13 +664,13 @@ class Utils:
         # by Alec Griffith '17
         #
         while np.abs(tempop - ovalue) > cutoff:
-            tempop = Utils.otranche(stock, strike, dursigma, call)
-            price2 = Utils.otranche(stock, strike, dursigma + durseed, call)
+            tempop = Utils.otranche(stock, strike, dur_sigma, call)
+            price2 = Utils.otranche(stock, strike, dur_sigma + durseed, call)
             deriv = (price2 - tempop) / seedsigma
-            daysigma -= (tempop - ovalue) / deriv
-            dursigma = daysigma * durvol(days)
+            day_sigma -= (tempop - ovalue) / deriv
+            dur_sigma = day_sigma * durvol(days)
         # End of Loop!
-        return daysigma, dursigma
+        return OptionIDV(day_sigma, dur_sigma)
 
     @staticmethod
     def peg(bid: float, ask: float, spread_perc: float) -> float:
@@ -742,7 +748,7 @@ class Utils:
             strike: float,
             daysigma: float,
             oprice: float,
-            days,
+            days: Union[int, float],
             call: bool) -> float:
         """
         TDECAY adds an extension to the otranche calculator (Taboga model)

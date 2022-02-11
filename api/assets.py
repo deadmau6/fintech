@@ -181,15 +181,7 @@ class OptionsContract(Derivative):
     _writing_fees = _fees  # CONFIG.WRITING_OPTIONS_FEES or _fees
     _buying_fees = _fees  # CONFIG.BUYING_OPTIONS_FEES or _fees
 
-    def __init__(
-            self,
-            symbol=None,
-            typ=None,
-            subtype=None,
-            strike=None,
-            price=None,
-            expiration=None,
-            amount=0):
+    def __init__(self, symbol=None, typ=None, subtype=None, strike=None, price=None, expiration=None, amount=0):
         super().__init__('OPTIONS')
         # Read ONLY
         self._set_symbol(symbol)
