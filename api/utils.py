@@ -36,7 +36,7 @@ from datetime import datetime
 from collections import deque
 from typing import List, Type, Dict, Union
 from .assets import OptionsContract
-from .types.static import OptionsSubType
+from .types.static import OptionSubType
 from .types.option_stats import OptionBSM, OptionPrice, OptionIDV
 
 
@@ -169,7 +169,7 @@ class Utils:
             days: int,
             rate: float) -> OptionBSM:
         """ Runs Black-Scholes-Merton IDV for options."""
-        if option_type == OptionsSubType.CALL:
+        if option_type == OptionSubType.CALL:
             return Utils.bsm_idv_call(stock, strike, option_price, days, rate)
         return Utils.bsm_idv_put(stock, strike, option_price, days, rate)
 
@@ -271,7 +271,7 @@ class Utils:
             day_vol: float,
             days: int,
             rfir: float) -> OptionPrice:
-        if option_type == OptionsSubType.CALL:
+        if option_type == OptionSubType.CALL:
             return Utils.call_option_price(stock, strike, day_vol, days, rfir)
         return Utils.put_option_price(stock, strike, day_vol, days, rfir)
 
@@ -424,7 +424,7 @@ class Utils:
         log_spread = math.log(strike / sto_pr_exp)
         norm_ls = log_spread / dur_vol
         norm_ls_adj = norm_ls + (dur_vol / 2)    # This is the Ito ajustment
-        if option_type == OptionsSubType.CALL:
+        if option_type == OptionSubType.CALL:
             return 1 - Utils.csnd(norm_ls_adj)
         return Utils.csnd(norm_ls_adj)
 
